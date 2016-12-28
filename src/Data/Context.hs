@@ -8,9 +8,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Data.Context where
 
+import Control.Lens ((&), (.~), (^.))
 import Control.Lens.Lens (Lens, lens)
 import Data.Proxy
 
@@ -23,8 +25,10 @@ type family Subtract (l :: [*]) (x :: *) where
     Subtract (y ': t) x = y ': Subtract t x
     Subtract '[] x = '[]
 
-type family Add (l :: [*]) (x :: *) where
-    Add xs x = x ': xs
+type family Mutate (l :: [*]) (a :: *) (b :: *) where
+    Mutate (a ': xs) a b = b ': xs
+    Mutate (c ': xs) a b = c ': Mutate xs a b
+    Mutate '[] a b = '[]
 
 type family Contains (l :: [*]) (x :: *) where
     Contains (x ': xs) x = 'True
@@ -44,24 +48,30 @@ instance (Show a, Show (Context as)) => Show (Context (a ': as)) where
     showsPrec outerPrecedence (a :. as) =
         showParen (outerPrecedence > 5) $ shows a . showString " :. " . shows as
 
-class HasContextEntry (context :: [*]) (val :: *) where
-    getContextEntry :: Context context -> val
-    removeContextEntry :: Context context -> Proxy val -> Context (Subtract context val)
-    contextEntry :: Contains (Subtract context val) y ~ 'False => Proxy val -> Lens (Context context) (Context (Add (Subtract context val) y)) val y
+class RemoveContextEntry (c :: [*]) (a :: *) where
+    removeContextEntry :: Context c -> Proxy a -> Context (Subtract c a)
 
-instance {-# OVERLAPPABLE #-} (
-        HasContextEntry xs val,
-        (Subtract (notIt ': xs) val) ~ (notIt ': Subtract xs val),
-        Contains (Subtract xs val) notIt ~ 'False) => HasContextEntry (notIt ': xs) val where
-    getContextEntry (_ :. xs) = getContextEntry xs
-    removeContextEntry (y :. xs) x = y :. removeContextEntry xs x
-    contextEntry p = lens getContextEntry set'
-        where set' (y :. xs) x = x :. y :. removeContextEntry xs p
+instance {-# OVERLAPPABLE #-} (RemoveContextEntry xs a, (Subtract (x ': xs) a) ~ (x ': Subtract xs a), Contains (Subtract xs a) x ~ 'False) => RemoveContextEntry (x ': xs) a where
+    removeContextEntry (x :. xs) p = x :. removeContextEntry xs p
 
-instance {-# OVERLAPPING #-} ((Subtract xs val) ~ xs, Contains xs val ~ 'False) => HasContextEntry (val ': xs) val where
-    getContextEntry (x :. _) = x
+instance {-# OVERLAPPING #-} RemoveContextEntry (a ': xs) a where
     removeContextEntry (_ :. xs) _ = xs
-    contextEntry p = lens getContextEntry set'
+
+class HasContextLens (c :: [*]) (a :: *) (b :: *) where
+    contextLens :: Proxy a -> Lens (Context c) (Context (Mutate c a b)) a b
+
+instance {-# LANGUAGE OVERLAPPABLE #-} (TypeEq x a ~ 'False, Mutate xs a a ~ xs, (Mutate (x ': xs) a b) ~ (x ': Mutate xs a b), Contains (Mutate xs a b) x ~ 'False, HasContextLens xs a b, HasContextLens xs a a) => HasContextLens (x ': xs) a b where
+    contextLens p = lens get' (set' p)
         where
-        set' :: Contains xs y ~ 'False => Context (x ': xs) -> y -> Context (y ': xs)
-        set' (_ :. xs) x = x :. xs
+        get' :: Context (x ': xs) -> a
+        get' (_ :. xs) = xs ^. contextLens p
+        set' :: Proxy a -> Context (x ': xs) -> b -> Context (Mutate (x ': xs) a b)
+        set' p (x :. xs) b = x :. (xs & contextLens p .~ b)
+
+instance {-# OVERLAPPING #-} (Contains xs b ~ 'False) => HasContextLens (a ': xs) a b where
+    contextLens _ = lens get' set'
+        where
+        get' :: Context (a ': xs) -> a
+        get' (x :. _) = x
+        set' :: Context (a ': xs) -> b -> Context (b ': xs)
+        set' (_ :. xs) b = b :. xs
