@@ -25,9 +25,14 @@ type family Subtract (l :: [*]) (x :: *) where
 type family Add (l :: [*]) (x :: *) where
     Add xs x = x ': xs
 
+type family Contains (l :: [*]) (x :: *) where
+    Contains (x ': xs) x = 'True
+    Contains (y ': xs) x = Contains xs x
+    Contains z x = 'False
+
 data Context t where
     EmptyContext :: Context '[]
-    (:.) :: HasNotContextEntry t a => a -> Context t -> Context (a ': t)
+    (:.) :: Contains t a ~ 'False => a -> Context t -> Context (a ': t)
 
 infixr 5 :.
 
@@ -41,27 +46,21 @@ instance (Show a, Show (Context as)) => Show (Context (a ': as)) where
 class HasContextEntry (context :: [*]) (val :: *) where
     getContextEntry :: Context context -> val
     removeContextEntry :: Context context -> Proxy val -> Context (Subtract context val)
-    contextEntry :: HasNotContextEntry (Subtract context val) y => Proxy val -> Lens (Context context) (Context (Add (Subtract context val) y)) val y
+    contextEntry :: Contains (Subtract context val) y ~ 'False => Proxy val -> Lens (Context context) (Context (Add (Subtract context val) y)) val y
 
 instance {-# OVERLAPPABLE #-} (
         HasContextEntry xs val,
         (Subtract (notIt ': xs) val) ~ (notIt ': Subtract xs val),
-        HasNotContextEntry (Subtract xs val) notIt) => HasContextEntry (notIt ': xs) val where
+        Contains (Subtract xs val) notIt ~ 'False) => HasContextEntry (notIt ': xs) val where
     getContextEntry (_ :. xs) = getContextEntry xs
     removeContextEntry (y :. xs) x = y :. removeContextEntry xs x
     contextEntry p = lens getContextEntry set'
         where set' (y :. xs) x = x :. y :. removeContextEntry xs p
 
-
-instance {-# OVERLAPPING #-} ((Subtract xs val) ~ xs, HasNotContextEntry xs val) => HasContextEntry (val ': xs) val where
+instance {-# OVERLAPPING #-} ((Subtract xs val) ~ xs, Contains xs val ~ 'False) => HasContextEntry (val ': xs) val where
     getContextEntry (x :. _) = x
     removeContextEntry (_ :. xs) _ = xs
     contextEntry p = lens getContextEntry set'
         where
-        set' :: HasNotContextEntry xs y => Context (x ': xs) -> y -> Context (y ': xs)
+        set' :: Contains xs y ~ 'False => Context (x ': xs) -> y -> Context (y ': xs)
         set' (_ :. xs) x = x :. xs
-
-class HasNotContextEntry (context :: [*]) (val :: *)
-
-instance {-# OVERLAPPABLE #-} (TypeEq n v ~ 'False, HasNotContextEntry xs v) => HasNotContextEntry (n ': xs) v
-instance {-# OVERLAPPING #-} HasNotContextEntry '[] v
