@@ -17,10 +17,10 @@ type family TypeEq a b where
     TypeEq a a = 'True
     TypeEq a b = 'False
 
-type family Mutate (l :: [*]) (a :: *) (b :: *) where
-    Mutate (a ': xs) a b = (b ': xs)
-    Mutate (v ': xs) a b = (v ': Mutate xs a b)
-    Mutate ('[]) a b = '[]
+type family Subtract (l :: [*]) (x :: *) where
+    Subtract (x ': t) x = t
+    Subtract (y ': t) x = y ': Subtract t x
+    Subtract '[] x = '[]
 
 data Context t where
     EmptyContext :: Context '[]
@@ -38,16 +38,23 @@ instance (Show a, Show (Context as)) => Show (Context (a ': as)) where
 class HasContextEntry (context :: [*]) (val :: *) where
     getContextEntry :: Context context -> val
     setContextEntry :: Context context -> val -> Context context
+    removeContextEntry :: Context context -> Proxy val -> Context (Subtract context val)
     contextEntry :: Lens' (Context context) val
 
-instance {-# OVERLAPPABLE #-} HasContextEntry xs val => HasContextEntry (notIt ': xs) val where
+instance {-# OVERLAPPABLE #-} (
+        HasContextEntry xs val,
+        (Subtract (notIt ': xs) val) ~ (notIt ': Subtract xs val),
+        HasNotContextEntry (Subtract xs val) notIt) => HasContextEntry (notIt ': xs) val where
     getContextEntry (_ :. xs) = getContextEntry xs
     setContextEntry (x :. xs) x' = x :. setContextEntry xs x'
+    removeContextEntry (y :. xs) x = y :. removeContextEntry xs x
     contextEntry = lens getContextEntry setContextEntry
 
-instance {-# OVERLAPPING #-} HasContextEntry (val ': xs) val where
+
+instance {-# OVERLAPPING #-} ((Subtract xs val) ~ xs, HasNotContextEntry xs val) => HasContextEntry (val ': xs) val where
     getContextEntry (x :. _) = x
     setContextEntry (_ :. xs) x = x :. xs
+    removeContextEntry (_ :. xs) _ = xs
     contextEntry = lens getContextEntry setContextEntry
 
 class HasNotContextEntry (context :: [*]) (val :: *)
@@ -55,5 +62,4 @@ class HasNotContextEntry (context :: [*]) (val :: *)
 instance {-# OVERLAPPABLE #-} (TypeEq n v ~ 'False, HasNotContextEntry xs v) => HasNotContextEntry (n ': xs) v
 instance {-# OVERLAPPING #-} HasNotContextEntry '[] v
 
-test :: HasNotContextEntry y z => Context (x ': y) -> z -> Context (z ': y)
-test (_ :. y) z = z :. y
+type ContextWith h t = Context (h ': t)
