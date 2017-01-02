@@ -27,7 +27,7 @@ type family Subtract (l :: [*]) (x :: *) where
 
 type family Mutate (l :: [*]) (a :: *) (b :: *) where
     Mutate xs a a = xs
-    Mutate (a ': xs) a b = b ': xs
+    Mutate (a ': xs) a b = b ': Mutate xs a b
     Mutate (c ': xs) a b = c ': Mutate xs a b
     Mutate '[] a b = '[]
 
@@ -69,7 +69,7 @@ instance {-# LANGUAGE OVERLAPPABLE #-} (TypeEq x a ~ 'False, (Mutate (x ': xs) a
         set' :: Proxy a -> Context (x ': xs) -> b -> Context (Mutate (x ': xs) a b)
         set' p (x :. xs) b = x :. (xs & contextLens p .~ b)
 
-instance {-# OVERLAPPING #-} (Contains xs b ~ 'False) => HasContextLens (a ': xs) a b where
+instance {-# OVERLAPPING #-} (Contains xs b ~ 'False, Mutate (a ': xs) a b ~ (b ': xs)) => HasContextLens (a ': xs) a b where
     contextLens _ = lens get' set'
         where
         get' :: Context (a ': xs) -> a
