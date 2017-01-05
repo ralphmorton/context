@@ -61,7 +61,7 @@ instance {-# OVERLAPPING #-} RemoveContextEntry (a ': xs) a where
 class HasContextLens (c :: [*]) (a :: *) (b :: *) where
     contextLens :: Proxy a -> Lens (Context c) (Context (Mutate c a b)) a b
 
-instance {-# LANGUAGE OVERLAPPABLE #-} (TypeEq x a ~ 'False, (Mutate (x ': xs) a b) ~ (x ': Mutate xs a b), Contains (Mutate xs a b) x ~ 'False, HasContextLens xs a b, HasContextLens xs a a) => HasContextLens (x ': xs) a b where
+instance {-# OVERLAPPABLE #-} (TypeEq x a ~ 'False, (Mutate (x ': xs) a b) ~ (x ': Mutate xs a b), Contains (Mutate xs a b) x ~ 'False, HasContextLens xs a b, HasContextLens xs a a) => HasContextLens (x ': xs) a b where
     contextLens p = lens get' (set' p)
         where
         get' :: Context (x ': xs) -> a
