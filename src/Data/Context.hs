@@ -31,10 +31,19 @@ type family Mutate (l :: [*]) (a :: *) (b :: *) where
     Mutate (c ': xs) a b = c ': Mutate xs a b
     Mutate '[] a b = '[]
 
+type family (a :: Bool) :||: (b :: Bool)  where
+    'True :||: b = 'True
+    a :||: 'True = 'True
+    a :||: b = 'False
+
 type family Contains (l :: [*]) (x :: *) where
     Contains (x ': xs) x = 'True
     Contains (y ': xs) x = Contains xs x
     Contains z x = 'False
+
+type family Intersects (l :: [*]) (r :: [*]) where
+    Intersects l (r ': rs) = (Contains l r) :||: (Intersects l rs)
+    Intersects l r = 'False
 
 data Context t where
     EmptyContext :: Context '[]
