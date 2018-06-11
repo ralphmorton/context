@@ -20,12 +20,12 @@ type family TypeEq a b where
     TypeEq a a = 'True
     TypeEq a b = 'False
 
-type family Subtract (l :: [*]) (x :: *) where
+type family Subtract l x where
     Subtract (x ': t) x = t
     Subtract (y ': t) x = y ': Subtract t x
     Subtract '[] x = '[]
 
-type family Mutate (l :: [*]) (a :: *) (b :: *) where
+type family Mutate l a b where
     Mutate xs a a = xs
     Mutate (a ': xs) a b = b ': Mutate xs a b
     Mutate (c ': xs) a b = c ': Mutate xs a b
@@ -36,12 +36,12 @@ type family (a :: Bool) :||: (b :: Bool)  where
     a :||: 'True = 'True
     a :||: b = 'False
 
-type family Contains (l :: [*]) (x :: *) where
+type family Contains l x where
     Contains (x ': xs) x = 'True
     Contains (y ': xs) x = Contains xs x
     Contains z x = 'False
 
-type family Intersects (l :: [*]) (r :: [*]) where
+type family Intersects l r where
     Intersects l (r ': rs) = (Contains l r) :||: (Intersects l rs)
     Intersects l r = 'False
 
@@ -58,7 +58,7 @@ instance (Show a, Show (Context as)) => Show (Context (a ': as)) where
     showsPrec outerPrecedence (a :. as) =
         showParen (outerPrecedence > 5) $ shows a . showString " :. " . shows as
 
-class RemoveContextEntry (c :: [*]) (a :: *) where
+class RemoveContextEntry c a where
     removeContextEntry :: Context c -> Proxy a -> Context (Subtract c a)
 
 instance {-# OVERLAPPABLE #-} (RemoveContextEntry xs a, (Subtract (x ': xs) a) ~ (x ': Subtract xs a), Contains (Subtract xs a) x ~ 'False) => RemoveContextEntry (x ': xs) a where
@@ -67,7 +67,7 @@ instance {-# OVERLAPPABLE #-} (RemoveContextEntry xs a, (Subtract (x ': xs) a) ~
 instance {-# OVERLAPPING #-} RemoveContextEntry (a ': xs) a where
     removeContextEntry (_ :. xs) _ = xs
 
-class HasContextLens (c :: [*]) (a :: *) (b :: *) where
+class HasContextLens c a b where
     contextLens :: Proxy a -> Lens (Context c) (Context (Mutate c a b)) a b
 
 instance {-# OVERLAPPABLE #-} (TypeEq x a ~ 'False, (Mutate (x ': xs) a b) ~ (x ': Mutate xs a b), Contains (Mutate xs a b) x ~ 'False, HasContextLens xs a b, HasContextLens xs a a) => HasContextLens (x ': xs) a b where
