@@ -1,8 +1,8 @@
 name:                context
 version:             0.2.1
 synopsis:            Flexible context type
-description:         Please see README.md
-homepage:            https://github.com/ralphmorton/context#readme
+description:         Flexible context type
+homepage:            https://github.com/ralphmorton/context
 license:             BSD3
 license-file:        LICENSE
 author:              Ralph Morton
@@ -10,7 +10,6 @@ maintainer:          ralphmorton@gmail.com
 copyright:           Ralph Morton
 category:            Misc
 build-type:          Simple
-extra-source-files:  README.md
 cabal-version:       >=1.10
 
 library
